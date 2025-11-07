@@ -1,65 +1,224 @@
-import Image from "next/image";
+// app/page.tsx
 
-export default function Home() {
+import pool from "@/app/lib/db"; // DB Pool import
+import { Fragment } from "react"; // Key prop을 위한 Fragment
+
+// CSS 스타일을 컴포넌트 상단에 정의
+const styles = {
+  container: { padding: '20px', fontFamily: 'sans-serif' },
+  header: { marginTop: '30px', borderBottom: '2px solid #eee', paddingBottom: '5px' },
+  table: { borderCollapse: 'collapse', width: '100%', marginTop: '10px' } as const,
+  th: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f4f4f4', textAlign: 'left' } as const,
+  td: { border: '1px solid #ddd', padding: '8px', textAlign: 'left' } as const,
+};
+
+// 페이지 컴포넌트 (서버 컴포넌트)
+async function Home() {
+  
+  // 1. 모든 테이블의 데이터를 동시에 가져옵니다.
+  const [
+    usersData,
+    capsulesData,
+    rolesData,
+    signsData,
+    notesData,
+    requestsData,
+    notificationsData
+  ] = await Promise.all([
+    pool.query('SELECT * FROM "USERS" ORDER BY user_id DESC'),
+    pool.query('SELECT * FROM "CAPSULE" ORDER BY capsule_id DESC'),
+    pool.query('SELECT * FROM "CAPSULE_ROLE" ORDER BY capsule_id, role_type'),
+    pool.query('SELECT * FROM "CAPSULE_SIGN" ORDER BY sign_id DESC'),
+    pool.query('SELECT * FROM "VERIFICATION_NOTE" ORDER BY note_id DESC'),
+    pool.query('SELECT * FROM "OWNERSHIP_REQUEST" ORDER BY request_id DESC'),
+    pool.query('SELECT * FROM "NOTIFICATION" ORDER BY notif_id DESC')
+  ]);
+
+  // 2. 쿼리 결과를 각각의 변수에 저장합니다.
+  const tables = {
+    USERS: usersData.rows,
+    CAPSULE: capsulesData.rows,
+    CAPSULE_ROLE: rolesData.rows,
+    CAPSULE_SIGN: signsData.rows,
+    VERIFICATION_NOTE: notesData.rows,
+    OWNERSHIP_REQUEST: requestsData.rows,
+    NOTIFICATION: notificationsData.rows,
+  };
+
+  // 3. 데이터를 HTML로 렌더링합니다.
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div style={styles.container}>
+      <h1>👨‍💻 타임캡슐 프로젝트 대시보드 (메인 페이지)</h1>
+      <p>(pgAdmin 대신 모든 테이블의 현재 상태를 보여줍니다)</p>
+
+      {/* USERS 테이블 */}
+      <h2 style={styles.header}>USERS ({tables.USERS.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>user_id</th>
+            <th style={styles.th}>username</th>
+            <th style={styles.th}>email</th>
+            <th style={styles.th}>join_date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.USERS.map((row) => (
+            <tr key={row.user_id}>
+              <td style={styles.td}>{row.user_id}</td>
+              <td style={styles.td}>{row.username}</td>
+              <td style={styles.td}>{row.email}</td>
+              <td style={styles.td}>{new Date(row.join_date).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* CAPSULE 테이블 */}
+      <h2 style={styles.header}>CAPSULE ({tables.CAPSULE.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>capsule_id</th>
+            <th style={styles.th}>owner_id</th>
+            <th style={styles.th}>title</th>
+            <th style={styles.th}>status</th>
+            <th style={styles.th}>unlock_date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.CAPSULE.map((row) => (
+            <tr key={row.capsule_id}>
+              <td style={styles.td}>{row.capsule_id}</td>
+              <td style={styles.td}>{row.owner_id}</td>
+              <td style={styles.td}>{row.title}</td>
+              <td style={{...styles.td, fontWeight: 'bold'}}>{row.status}</td>
+              <td style={styles.td}>{new Date(row.unlock_date).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* CAPSULE_ROLE 테이블 */}
+      <h2 style={styles.header}>CAPSULE_ROLE ({tables.CAPSULE_ROLE.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>capsule_id</th>
+            <th style={styles.th}>user_id</th>
+            <th style={styles.th}>role_type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.CAPSULE_ROLE.map((row, index) => (
+            <tr key={`${row.capsule_id}-${row.user_id}`}>
+              <td style={styles.td}>{row.capsule_id}</td>
+              <td style={styles.td}>{row.user_id}</td>
+              <td style={styles.td}>{row.role_type}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* CAPSULE_SIGN 테이블 */}
+      <h2 style={styles.header}>CAPSULE_SIGN ({tables.CAPSULE_SIGN.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>sign_id</th>
+            <th style={styles.th}>capsule_id</th>
+            <th style={styles.th}>signer_id</th>
+            <th style={styles.th}>sign_status</th>
+            <th style={styles.th}>reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.CAPSULE_SIGN.map((row) => (
+            <tr key={row.sign_id}>
+              <td style={styles.td}>{row.sign_id}</td>
+              <td style={styles.td}>{row.capsule_id}</td>
+              <td style={styles.td}>{row.signer_id}</td>
+              <td style={styles.td}>{row.sign_status}</td>
+              <td style={styles.td}>{row.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* VERIFICATION_NOTE 테이블 */}
+      <h2 style={styles.header}>VERIFICATION_NOTE ({tables.VERIFICATION_NOTE.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>note_id</th>
+            <th style={styles.th}>capsule_id</th>
+            <th style={styles.th}>verifier_id</th>
+            <th style={styles.th}>note</th>
+            <th style={styles.th}>created_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.VERIFICATION_NOTE.map((row) => (
+            <tr key={row.note_id}>
+              <td style={styles.td}>{row.note_id}</td>
+              <td style={styles.td}>{row.capsule_id}</td>
+              <td style={styles.td}>{row.verifier_id}</td>
+              <td style={styles.td}>{row.note}</td>
+              <td style={styles.td}>{new Date(row.created_at).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* OWNERSHIP_REQUEST 테이블 */}
+      <h2 style={styles.header}>OWNERSHIP_REQUEST ({tables.OWNERSHIP_REQUEST.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>request_id</th>
+            <th style={styles.th}>capsule_id</th>
+            <th style={styles.th}>successor_id</th>
+            <th style={styles.th}>approved</th>
+            <th style={styles.th}>request_date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.OWNERSHIP_REQUEST.map((row) => (
+            <tr key={row.request_id}>
+              <td style={styles.td}>{row.request_id}</td>
+              <td style={styles.td}>{row.capsule_id}</td>
+              <td style={styles.td}>{row.successor_id}</td>
+              <td style={styles.td}>{String(row.approved)}</td>
+              <td style={styles.td}>{new Date(row.request_date).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* NOTIFICATION 테이블 */}
+      <h2 style={styles.header}>NOTIFICATION ({tables.NOTIFICATION.length}개)</h2>
+      <table style={styles.table}>
+        <thead>
+          {/* 🚨 수정: <tr>과 <th>를 같은 줄에 붙여서 공백 제거 */}
+          <tr><th style={styles.th}>notif_id</th>
+            <th style={styles.th}>user_id</th>
+            <th style={styles.th}>message</th>
+            <th style={styles.th}>sent_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.NOTIFICATION.map((row) => (
+            <tr key={row.notif_id}>
+              <td style={styles.td}>{row.notif_id}</td>
+              <td style={styles.td}>{row.user_id}</td>
+              <td style={styles.td}>{row.message}</td>
+              <td style={styles.td}>{new Date(row.sent_at).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
+
+export default Home;
