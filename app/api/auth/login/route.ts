@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
         // 3. (1단계) 이메일을 기준으로 사용자 정보 조회
         const findUserQuery = `
-            SELECT user_id, username, password FROM "USERS" WHERE "email" = $1;
+            SELECT user_id, username, hashed_password FROM "USERS" WHERE "email" = $1;
         `;
         const findResult = await client.query(findUserQuery, [email]);
         const user = findResult.rows[0];
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
         // 5. (3단계) 비밀번호 비교 (✨ bcrypt.compare를 사용하여 해시된 비밀번호 검증)
         // DB에 저장된 해시 비밀번호와 사용자가 입력한 평문 비밀번호를 비교합니다.
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcrypt.compare(password, user.hashed_password);
         
         if (!isPasswordValid) {
             // 비밀번호가 일치하지 않는 경우
