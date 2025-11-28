@@ -1,52 +1,96 @@
-// app/api/capsules/route.ts
-
 import { NextResponse } from 'next/server';
-import pool from '@/app/lib/db'; // DB 연결 모듈 재사용
+import pool from '@/app/lib/db';
 
-/**
- * @summary 캡슐 생성 (Creator)
- * @description '창작자'가 새 캡슐을 'draft' 상태로 생성합니다.
- */
-export async function POST(request: Request) {
+// 1. 캡슐 목록 가져오기 (GET) - 내가 만든 것 + 초대받은 것
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = 6; 
+  const offset = (page - 1) * limit; 
+
+  if (!userId) return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+
+  let client;
   try {
-    // 1. 프론트엔드에서 보낸 JSON 데이터를 받습니다.
-    const {
-      owner_id, // 캡슐을 생성하는 사용자 ID (Creator)
-      title,
-      content,
-      unlock_date, // 개봉일 (예: "2026-11-05T14:00:00Z")
-    } = await request.json();
+    client = await pool.connect();
 
-    // 2. (유효성 검사) 필수 값들이 모두 있는지 확인합니다.
-    if (!owner_id || !title || !unlock_date) {
-      return NextResponse.json({
-        message: "❌ 'owner_id', 'title', 'unlock_date'는 필수 항목입니다.",
-      }, { status: 400 }); // 400: Bad Request (잘못된 요청)
-    }
-
-    // 3. DB에 INSERT 쿼리를 날립니다.
-    const query = `
-      INSERT INTO "CAPSULE" (owner_id, title, content, status, unlock_date)
-      VALUES ($1, $2, $3, 'draft', $4)
-      RETURNING capsule_id, title, status, unlock_date;
+    // ✨ 쿼리 수정: OWNER이거나 OR 참여자(ROLE)인 경우 모두 조회
+    const dataQuery = `
+      SELECT DISTINCT c.capsule_id, c.title, c.status, c.unlock_date, c.created_at, c.owner_id
+      FROM "CAPSULE" c
+      LEFT JOIN "CAPSULE_ROLE" r ON c.capsule_id = r.capsule_id
+      WHERE c.owner_id = $1 OR r.user_id = $1
+      ORDER BY c.created_at DESC
+      LIMIT $2 OFFSET $3;
     `;
-    // 'status'는 'draft' (초안)로 고정해서 저장합니다.
-    const values = [owner_id, title, content, unlock_date];
-    
-    const result = await pool.query(query, values);
 
-    // 4. 성공 시, 방금 생성된 캡슐 정보를 반환합니다.
-    return NextResponse.json({
-      message: "✅ 캡슐 생성 성공!",
-      capsule: result.rows[0],
-    }, { status: 201 }); // 201: Created
+    // 전체 개수 세기 (페이지네이션용)
+    const countQuery = `
+      SELECT COUNT(DISTINCT c.capsule_id) 
+      FROM "CAPSULE" c
+      LEFT JOIN "CAPSULE_ROLE" r ON c.capsule_id = r.capsule_id
+      WHERE c.owner_id = $1 OR r.user_id = $1;
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      client.query(dataQuery, [userId, limit, offset]),
+      client.query(countQuery, [userId])
+    ]);
+
+    const totalCount = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return NextResponse.json({ 
+      capsules: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages
+      }
+    }, { status: 200 });
 
   } catch (error) {
-    // 5. 실패 시
-    const errorMessage = (error instanceof Error) ? error.message : String(error);
-    return NextResponse.json({
-      message: "❌ 캡슐 생성 실패...",
-      error: errorMessage,
-    }, { status: 500 });
+    console.error("Fetch Error:", error);
+    return NextResponse.json({ message: "조회 실패" }, { status: 500 });
+  } finally {
+    if (client) client.release();
+  }
+}
+
+// 2. 캡슐 생성하기 (POST) - 기존과 동일 (유지)
+export async function POST(request: Request) {
+  let client;
+  try {
+    const body = await request.json();
+    const { owner_id, title, content, unlock_date } = body;
+
+    if (!owner_id || !title || !unlock_date) {
+      return NextResponse.json({ message: "필수 정보가 누락되었습니다." }, { status: 400 });
+    }
+
+    client = await pool.connect();
+
+    const query = `
+      INSERT INTO "CAPSULE" (owner_id, title, content, unlock_date, status)
+      VALUES ($1, $2, $3, $4, 'draft') -- 초기 상태는 draft
+      RETURNING *;
+    `;
+    
+    const values = [owner_id, title, content, unlock_date];
+    const result = await client.query(query, values);
+
+    return NextResponse.json({ 
+      message: "캡슐 초안이 생성되었습니다!", 
+      capsule: result.rows[0] 
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error("Create Error:", error);
+    return NextResponse.json({ message: "생성 실패", error: String(error) }, { status: 500 });
+  } finally {
+    if (client) client.release();
   }
 }

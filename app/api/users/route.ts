@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import pool from '@/app/lib/db'; // DB 연결 모듈 (pg pool)
 import { PoolClient } from 'pg';
+import * as bcrypt from 'bcryptjs'; // ✅ 암호화 라이브러리 추가
 
 /**
  * @summary 사용자 생성/회원가입 (POST)
  * @description 새로운 사용자를 USERS 테이블에 등록합니다.
  */
 export async function POST(request: Request) {
-  let client: PoolClient | undefined; // client 변수를 PoolClient 타입으로 정의
+  let client: PoolClient | undefined;
 
   try {
     // 1. JSON Body에서 사용자 정보 가져오기
@@ -63,21 +64,26 @@ export async function POST(request: Request) {
         }, { status: 409 });
     }
 
-    // 6. 새 사용자 INSERT (DB 컬럼 이름과 매핑 확인)
+    // ✅ 6. 비밀번호 암호화 (핵심 추가 사항)
+    // 10은 salt round 수입니다.
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 7. 새 사용자 INSERT
+    // created_at에 NOW()를 추가하여 가입 시간을 자동 기록합니다.
     const insertUserQuery = `
-      INSERT INTO "USERS" (username, email, hashed_password)
-      VALUES ($1, $2, $3)
-      RETURNING user_id, username, email, created_at;
+      INSERT INTO "USERS" (username, email, hashed_password, join_date)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING user_id, username, email, join_date;
     `;
-    // 경고: 실제 환경에서는 password를 저장하기 전에 bcrypt와 같은 라이브러리를 사용하여 해시해야 합니다.
-    // 현재는 사용자의 DB 구조를 유지하기 위해 평문을 사용합니다.
-    const insertUserValues = [username, email, password];
+    
+    // ⚠️ 중요: password 대신 hashedPassword를 넣어야 합니다.
+    const insertUserValues = [username, email, hashedPassword];
     
     const insertResult = await client.query(insertUserQuery, insertUserValues);
     
     await client.query('COMMIT'); // 커밋
 
-    // 7. 성공 시
+    // 8. 성공 시
     const newUser = insertResult.rows[0];
     return NextResponse.json({
       message: "✅ 사용자 계정 생성 성공!",
@@ -90,33 +96,29 @@ export async function POST(request: Request) {
     }, { status: 201 });
 
   } catch (error) {
-    // 8. 실패 시 (롤백 시도 및 상세 오류 로깅)
-    
-    // 트랜잭션 도중 오류가 발생했다면 ROLLBACK을 시도합니다.
+    // 9. 실패 시 (롤백 시도 및 상세 오류 로깅)
     if (client) {
       try {
         await client.query('ROLLBACK');
       } catch (rollbackError) {
-        // 롤백 실패는 무시하지만 로그에 남깁니다.
         console.error("Rollback Attempt Failed:", rollbackError);
       }
     }
     
-    // Postgres 오류 객체에서 상세 정보를 추출합니다.
     const pgError = error as any; 
     console.error("User POST API DB Error (Full Object):", pgError);
 
     let displayMessage = "❌ 사용자 계정 생성 실패: 데이터베이스 처리 중 알 수 없는 오류 발생.";
     let errorDetail = (pgError instanceof Error) ? pgError.message : String(pgError);
 
-    if (pgError.code) { // PostgreSQL specific error codes (e.g., '23505' for unique violation)
+    if (pgError.code) { 
         errorDetail = `[DB Error Code: ${pgError.code}] ${pgError.detail || pgError.message}`;
 
-        if (pgError.code === '23505') { // unique_violation
+        if (pgError.code === '23505') { 
             displayMessage = "❌ 회원가입 실패: 데이터 중복 오류입니다 (이메일/사용자 이름).";
-        } else if (pgError.code === '22001') { // string_data_right_truncation (value too long)
-            displayMessage = "❌ 회원가입 실패: 입력된 값(예: 사용자 이름, 이메일, 비밀번호)의 길이가 너무 깁니다.";
-        } else if (pgError.code === '23502') { // not_null_violation
+        } else if (pgError.code === '22001') { 
+            displayMessage = "❌ 회원가입 실패: 입력된 값의 길이가 너무 깁니다.";
+        } else if (pgError.code === '23502') { 
             displayMessage = "❌ 회원가입 실패: 필수 필드(NOT NULL)에 값이 누락되었습니다.";
         }
     }
@@ -124,10 +126,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: displayMessage,
       error_detail: errorDetail,
-      // 이전 콜 스택과 혼동하지 않도록 500 에러를 반환합니다.
     }, { status: 500 });
   } finally {
-    // 9. client 반환 (항상 실행)
+    // 10. client 반환 (항상 실행)
     if (client) {
         client.release();
     }

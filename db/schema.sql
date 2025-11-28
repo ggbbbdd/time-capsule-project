@@ -1,10 +1,8 @@
--- db/schema.sql (이 내용으로 덮어쓰세요)
 
--- 1. 사용자 테이블 (이름이 "USERS"로 변경됨)
 CREATE TABLE "USERS" (
     "user_id"       SERIAL PRIMARY KEY,
     "username"      VARCHAR(100) NOT NULL UNIQUE,
-    "password"      VARCHAR(255) NOT NULL,
+    "hashed_password"      VARCHAR(255) NOT NULL,
     "email"         VARCHAR(255) NOT NULL UNIQUE,
     "join_date"     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

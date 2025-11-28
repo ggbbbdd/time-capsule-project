@@ -12,6 +12,7 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.7.0",
     "@types/pg": "^8.15.6",
+    "bcryptjs": "^3.0.3",
     "next": "^16.0.1",
     "pg": "^8.16.3",
     "react": "19.2.0",
