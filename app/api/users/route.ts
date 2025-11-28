@@ -65,9 +65,9 @@ export async function POST(request: Request) {
 
     // 6. 새 사용자 INSERT (DB 컬럼 이름과 매핑 확인)
     const insertUserQuery = `
-      INSERT INTO "USERS" (username, email, hashed_password)
+      INSERT INTO "USERS" (username, email, password)
       VALUES ($1, $2, $3)
-      RETURNING user_id, username, email, created_at;
+      RETURNING user_id, username, email, join_date;
     `;
     // 경고: 실제 환경에서는 password를 저장하기 전에 bcrypt와 같은 라이브러리를 사용하여 해시해야 합니다.
     // 현재는 사용자의 DB 구조를 유지하기 위해 평문을 사용합니다.
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           user_id: newUser.user_id,
           username: newUser.username,
           email: newUser.email,
-          created_at: newUser.created_at,
+          join_date: newUser.join_date,
       }
     }, { status: 201 });
 
