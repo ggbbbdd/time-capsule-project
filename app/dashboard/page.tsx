@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { UserCheck } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,6 +34,10 @@ export default function DashboardPage() {
     router.push('/');
   };
 
+  const handleGoToVerifier = () => {
+     router.push('/verifier'); // 새로운 라우트로 이동하도록 설정
+     };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -56,6 +61,16 @@ export default function DashboardPage() {
         >
           + 새로운 타임캡슐 봉인하러 가기
         </button>
+
+        {/* 인증자 대시보드 바로가기 버튼 추가 */}
+        <button 
+               onClick={handleGoToVerifier} 
+               className="w-full py-4 border-2 border-dashed border-green-300 rounded-xl text-green-600 font-bold hover:bg-green-50 hover:border-green-500 transition-all shadow-sm flex items-center justify-center space-x-2"
+              >
+                <UserCheck className="w-5 h-5" />
+               <span>인증자 대시보드 확인</span>
+           </button>
+        
 
         {/* 리스트 영역 */}
         <h2 className="text-lg font-bold mb-4 text-gray-700">📦 내 캡슐 보관함</h2>

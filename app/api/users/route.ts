@@ -1,3 +1,5 @@
+console.log("📩 /api/users 호출됨");
+
 import { NextResponse } from 'next/server';
 import pool from '@/app/lib/db'; // DB 연결 모듈 (pg pool)
 import { PoolClient } from 'pg';

@@ -32,7 +32,35 @@ export async function POST(
         return NextResponse.json({ message: "이미 개봉된 캡슐입니다." }, { status: 200 });
     }
 
-    // 4. 상태 업데이트 (sealed -> unlocked)
+    // 4. 인증자 승인 여부 확인 (VERIFICATION_NOTE 테이블 확인)
+    const verifierCheck = await client.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "VERIFICATION_NOTE" 
+       WHERE capsule_id = $1`,
+      [capsuleId]
+    );
+
+    const verifierApprovalCount = verifierCheck.rows[0]?.count || 0;
+    
+    // 인증자가 지정되어 있는지 확인
+    const verifierRoleCheck = await client.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "CAPSULE_ROLE" 
+       WHERE capsule_id = $1 AND role_type = 'verifier'`,
+      [capsuleId]
+    );
+
+    const totalVerifiers = verifierRoleCheck.rows[0]?.count || 0;
+
+    // 인증자가 지정되어 있으면, 최소 1명 이상의 인증자 승인이 필요
+    if (totalVerifiers > 0 && verifierApprovalCount === 0) {
+      return NextResponse.json({ 
+        message: "인증자의 승인이 필요합니다. 인증자 대시보드에서 승인해주세요." 
+      }, { status: 403 });
+    }
+
+    // 5. 상태 업데이트 (sealed -> unlocked)
+    // 인증자 승인이 있거나, 인증자가 없는 경우에만 개봉 가능
     const updateQuery = `
       UPDATE "CAPSULE" 
       SET status = 'unlocked' 
